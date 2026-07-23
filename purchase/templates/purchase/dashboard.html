@@ -1,0 +1,104 @@
+{% extends 'purchase/base.html' %}
+
+{% block content %}
+<div class="row">
+    <!-- Stats Cards -->
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">Total Vendors</h5>
+                <h2 class="card-text">{{ total_vendors }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Total POs</h5>
+                <h2 class="card-text">{{ total_pos }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title">Pending POs</h5>
+                <h2 class="card-text">{{ pending_pos }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title">Today's POs</h5>
+                <h2 class="card-text">{{ today_pos }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Total Amount -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Total Purchase Amount</h5>
+            </div>
+            <div class="card-body">
+                <h3 class="card-text">₹{{ total_amount|floatformat:2 }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status Distribution -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">PO Status Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <span class="badge bg-primary">Sent</span>
+                        <strong>{{ status_counts.sent|default:0 }}</strong>
+                    </div>
+                    <div class="col-6">
+                        <span class="badge bg-warning text-dark">Partially Received</span>
+                        <strong>{{ status_counts.partially_received|default:0 }}</strong>
+                    </div>
+                    <div class="col-6 mt-2">
+                        <span class="badge bg-success">Closed</span>
+                        <strong>{{ status_counts.closed|default:0 }}</strong>
+                    </div>
+                    <div class="col-6 mt-2">
+                        <span class="badge bg-danger">Cancelled</span>
+                        <strong>{{ status_counts.cancelled|default:0 }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Action Buttons - बड़े और स्पष्ट -->
+<div class="row mt-4">
+    <div class="col-md-4 mb-3">
+        <a href="/vendors/" class="btn btn-primary btn-lg btn-block w-100 py-3">
+            <h4 class="mb-0">➕ Add Vendor</h4>
+            <small>Create new vendor</small>
+        </a>
+    </div>
+    <div class="col-md-4 mb-3">
+        <a href="/pos/" class="btn btn-success btn-lg btn-block w-100 py-3">
+            <h4 class="mb-0">📝 Create PO</h4>
+            <small>Create new purchase order</small>
+        </a>
+    </div>
+    <div class="col-md-4 mb-3">
+        <a href="/receiving/" class="btn btn-warning btn-lg btn-block w-100 py-3">
+            <h4 class="mb-0">📦 Receive Goods</h4>
+            <small>Receive goods against PO</small>
+        </a>
+    </div>
+</div>
+{% endblock %}

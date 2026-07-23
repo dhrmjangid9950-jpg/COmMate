@@ -1,0 +1,557 @@
+{% extends 'purchase/base.html' %}
+
+{% block content %}
+<h2>📦 Receiving List</h2>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">🔍 Filters</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <label class="form-label">PO Number</label>
+                <select class="form-select" id="filterPO">
+                    <option value="">All POs</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Invoice No.</label>
+                <input type="text" class="form-control" id="filterInvoice" placeholder="Search Invoice">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Date Range</label>
+                <div class="input-group">
+                    <input type="date" class="form-control" id="filterDateFrom" placeholder="From">
+                    <input type="date" class="form-control" id="filterDateTo" placeholder="To">
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Receiving Table -->
+<div class="card">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Receiving List</h5>
+        <a href="/receiving/" class="btn btn-sm btn-light">+ New Receiving</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="receivingTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>PO #</th>
+                        <th>Invoice No.</th>
+                        <th>Invoice Date</th>
+                        <th>Received Date</th>
+                        <th>Subtotal</th>
+                        <th>GST</th>
+                        <th>Total</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="receivingTableBody">
+                    <tr>
+                        <td colspan="9" class="text-center text-muted">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Receiving Modal -->
+<div class="modal fade" id="editReceivingModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">✏️ Edit Receiving</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="editReceivingContent">
+                Loading...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Receiving Modal -->
+<div class="modal fade" id="viewReceivingModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">📄 Receiving Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="receivingDetailContent">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==================== LOAD RECEIVINGS ====================
+    async function loadReceivings() {
+        console.log('🔄 Loading receivings...');
+        const tbody = document.getElementById('receivingTableBody');
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <br>Loading receivings...
+        </td></tr>`;
+        
+        try {
+            const po = document.getElementById('filterPO').value;
+            const invoice = document.getElementById('filterInvoice').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+            
+            let url = '/api/receivings/';
+            const params = new URLSearchParams();
+            if (po) params.append('po', po);
+            if (invoice) params.append('invoice_no', invoice);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            
+            if (params.toString()) url += '?' + params.toString();
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const receivings = await response.json();
+            console.log('✅ Receivings received:', receivings.length);
+            
+            if (receivings.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted">No receivings found</td></tr>`;
+                return;
+            }
+            
+            tbody.innerHTML = receivings.map((rec, index) => {
+                const subtotal = parseFloat(rec.subtotal) || 0;
+                const gstAmount = parseFloat(rec.gst_amount) || 0;
+                const totalAmount = parseFloat(rec.total_amount) || 0;
+                
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td><strong>${rec.po}</strong></td>
+                        <td>${rec.invoice_no || '-'}</td>
+                        <td>${rec.invoice_date || '-'}</td>
+                        <td>${rec.received_date || '-'}</td>
+                        <td>₹${subtotal.toFixed(2)}</td>
+                        <td>₹${gstAmount.toFixed(2)}</td>
+                        <td><strong>₹${totalAmount.toFixed(2)}</strong></td>
+                        <td>
+                            <button class="btn btn-sm btn-info" onclick="viewReceiving(${rec.id})" title="View Receiving">👁️</button>
+                            <button class="btn btn-sm btn-warning" onclick="editReceiving(${rec.id})" title="Edit Receiving">✏️</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteReceiving(${rec.id})" title="Delete Receiving">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+        } catch (error) {
+            console.error('❌ Error loading receivings:', error);
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Error: ${error.message}</td></tr>`;
+        }
+    }
+
+    // ==================== VIEW RECEIVING ====================
+    async function viewReceiving(id) {
+        const modal = new bootstrap.Modal(document.getElementById('viewReceivingModal'));
+        const content = document.getElementById('receivingDetailContent');
+        content.innerHTML = 'Loading...';
+        modal.show();
+        
+        try {
+            const res = await fetch(`/api/receivings/${id}/`);
+            const rec = await res.json();
+            
+            const subtotal = parseFloat(rec.subtotal) || 0;
+            const gstAmount = parseFloat(rec.gst_amount) || 0;
+            const totalAmount = parseFloat(rec.total_amount) || 0;
+            
+            // Fetch PO details
+            const poRes = await fetch(`/api/pos/${rec.po}/`);
+            const po = await poRes.json();
+            
+            content.innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>PO Number:</strong> ${po.po_number || rec.po}</p>
+                        <p><strong>Vendor:</strong> ${po.vendor || 'N/A'}</p>
+                        <p><strong>Invoice No.:</strong> ${rec.invoice_no || '-'}</p>
+                        <p><strong>Invoice Date:</strong> ${rec.invoice_date || '-'}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Received Date:</strong> ${rec.received_date}</p>
+                        <p><strong>Subtotal:</strong> ₹${subtotal.toFixed(2)}</p>
+                        <p><strong>GST (${rec.gst_percentage || 0}%):</strong> ₹${gstAmount.toFixed(2)}</p>
+                        <p><strong>Grand Total:</strong> ₹${totalAmount.toFixed(2)}</p>
+                    </div>
+                </div>
+                ${rec.notes ? `<p><strong>Notes:</strong> ${rec.notes}</p>` : ''}
+                <hr>
+                <h6>Received Items</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Product</th>
+                                <th>Received Qty</th>
+                                <th>Unit Price</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rec.items && rec.items.length > 0 ? rec.items.map((item, idx) => {
+                                const totalPrice = parseFloat(item.total_price) || 0;
+                                const receivedQty = parseFloat(item.received_qty) || 0;
+                                const unitPrice = parseFloat(item.unit_price) || 0;
+                                
+                                return `
+                                    <tr>
+                                        <td>${idx + 1}</td>
+                                        <td>${item.po_item || 'N/A'}</td>
+                                        <td>${receivedQty}</td>
+                                        <td>₹${unitPrice.toFixed(2)}</td>
+                                        <td>₹${totalPrice.toFixed(2)}</td>
+                                        <td>
+                                            <span class="badge ${item.accepted ? 'bg-success' : 'bg-danger'}">
+                                                ${item.accepted ? 'Accepted' : 'Rejected'}
+                                            </span>
+                                            ${item.reject_reason ? `<br><small class="text-danger">${item.reject_reason}</small>` : ''}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('') : '<tr><td colspan="6" class="text-center">No items found</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } catch (error) {
+            content.innerHTML = `<div class="alert alert-danger">Error loading receiving: ${error.message}</div>`;
+        }
+    }
+
+    // ==================== EDIT RECEIVING ====================
+    async function editReceiving(id) {
+        const modal = new bootstrap.Modal(document.getElementById('editReceivingModal'));
+        const content = document.getElementById('editReceivingContent');
+        content.innerHTML = 'Loading...';
+        modal.show();
+        
+        try {
+            const res = await fetch(`/api/receivings/${id}/`);
+            const rec = await res.json();
+            
+            // Fetch PO items for selection
+            const poRes = await fetch(`/api/pos/${rec.po}/`);
+            const po = await poRes.json();
+            
+            let itemsHtml = '';
+            if (rec.items && rec.items.length > 0) {
+                itemsHtml = rec.items.map((item, idx) => {
+                    return `
+                        <div class="row item-row mb-2">
+                            <div class="col-md-3">
+                                <select class="form-select" name="po_item">
+                                    ${po.items.map(p => `
+                                        <option value="${p.id}" ${p.id === item.po_item ? 'selected' : ''}>
+                                            ${p.product_name}
+                                        </option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.01" class="form-control" name="received_qty" value="${item.received_qty}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.01" class="form-control" name="unit_price" value="${item.unit_price}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select" name="accepted">
+                                    <option value="true" ${item.accepted ? 'selected' : ''}>Accepted</option>
+                                    <option value="false" ${!item.accepted ? 'selected' : ''}>Rejected</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" class="form-control" name="reject_reason" placeholder="Reject Reason" value="${item.reject_reason || ''}">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">✕</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                itemsHtml = `
+                    <div class="row item-row mb-2">
+                        <div class="col-md-3">
+                            <select class="form-select" name="po_item">
+                                ${po.items.map(p => `
+                                    <option value="${p.id}">${p.product_name}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="number" step="0.01" class="form-control" name="received_qty" placeholder="Qty" required>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="number" step="0.01" class="form-control" name="unit_price" placeholder="Unit Price" required>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" name="accepted">
+                                <option value="true">Accepted</option>
+                                <option value="false">Rejected</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" class="form-control" name="reject_reason" placeholder="Reject Reason">
+                        </div>
+                        <div class="col-md-1">
+                            <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">✕</button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            content.innerHTML = `
+                <form id="editReceivingForm" data-id="${rec.id}">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">Invoice No.</label>
+                            <input type="text" class="form-control" name="invoice_no" value="${rec.invoice_no || ''}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Invoice Date</label>
+                            <input type="date" class="form-control" name="invoice_date" value="${rec.invoice_date || ''}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">GST %</label>
+                            <input type="number" step="0.01" class="form-control" name="gst_percentage" value="${rec.gst_percentage || 0}">
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" name="notes" rows="2">${rec.notes || ''}</textarea>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h6>Items</h6>
+                            <div id="editItemsContainer">
+                                ${itemsHtml}
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="addEditItemRow()">+ Add Item</button>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <button type="submit" class="btn btn-success">Update Receiving</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        </div>
+                    </div>
+                </form>
+            `;
+            
+            // Add form submit handler
+            document.getElementById('editReceivingForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const formId = e.target.dataset.id;
+                
+                const data = {
+                    invoice_no: formData.get('invoice_no'),
+                    invoice_date: formData.get('invoice_date'),
+                    gst_percentage: parseFloat(formData.get('gst_percentage')) || 0,
+                    notes: formData.get('notes'),
+                    items: []
+                };
+                
+                const itemRows = document.querySelectorAll('#editItemsContainer .item-row');
+                itemRows.forEach(row => {
+                    const poItem = row.querySelector('[name="po_item"]').value;
+                    const receivedQty = parseFloat(row.querySelector('[name="received_qty"]').value);
+                    const unitPrice = parseFloat(row.querySelector('[name="unit_price"]').value);
+                    const accepted = row.querySelector('[name="accepted"]').value === 'true';
+                    const rejectReason = row.querySelector('[name="reject_reason"]').value || '';
+                    
+                    if (receivedQty > 0) {
+                        data.items.push({
+                            po_item: parseInt(poItem),
+                            received_qty: receivedQty,
+                            unit_price: unitPrice,
+                            accepted: accepted,
+                            reject_reason: rejectReason
+                        });
+                    }
+                });
+                
+                if (data.items.length === 0) {
+                    alert('Please add at least one item');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/api/receivings/${formId}/update_receiving/`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(data)
+                    });
+                    
+                    if (response.ok) {
+                        alert('✅ Receiving updated successfully!');
+                        modal.hide();
+                        loadReceivings();
+                    } else {
+                        const error = await response.json();
+                        alert('Error: ' + JSON.stringify(error));
+                    }
+                } catch (error) {
+                    alert('Error: ' + error.message);
+                }
+            });
+            
+        } catch (error) {
+            content.innerHTML = `<div class="alert alert-danger">Error loading receiving: ${error.message}</div>`;
+        }
+    }
+
+    // ==================== ADD EDIT ITEM ROW ====================
+    async function addEditItemRow() {
+        const container = document.getElementById('editItemsContainer');
+        const row = document.createElement('div');
+        row.className = 'row item-row mb-2';
+        
+        // Get the PO ID from the form
+        const form = document.getElementById('editReceivingForm');
+        const recId = form ? form.dataset.id : null;
+        let poItems = [];
+        
+        if (recId) {
+            try {
+                const recRes = await fetch(`/api/receivings/${recId}/`);
+                const rec = await recRes.json();
+                const poRes = await fetch(`/api/pos/${rec.po}/`);
+                const po = await poRes.json();
+                poItems = po.items;
+            } catch (error) {
+                console.error('Error fetching PO items:', error);
+            }
+        }
+        
+        let optionsHtml = '<option value="">Select Product</option>';
+        if (poItems.length > 0) {
+            optionsHtml = poItems.map(p => `
+                <option value="${p.id}">${p.product_name}</option>
+            `).join('');
+        }
+        
+        row.innerHTML = `
+            <div class="col-md-3">
+                <select class="form-select" name="po_item">
+                    ${optionsHtml}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="number" step="0.01" class="form-control" name="received_qty" placeholder="Qty" required>
+            </div>
+            <div class="col-md-2">
+                <input type="number" step="0.01" class="form-control" name="unit_price" placeholder="Unit Price" required>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="accepted">
+                    <option value="true">Accepted</option>
+                    <option value="false">Rejected</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="text" class="form-control" name="reject_reason" placeholder="Reject Reason">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">✕</button>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    // ==================== DELETE RECEIVING ====================
+    async function deleteReceiving(id) {
+        if (!confirm('⚠️ Are you sure you want to delete this receiving entry? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/receivings/${id}/delete_receiving/`, {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'}
+            });
+            
+            if (response.ok) {
+                alert('✅ Receiving deleted successfully!');
+                loadReceivings();
+            } else {
+                const error = await response.json();
+                alert('Error: ' + JSON.stringify(error));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    // ==================== LOAD POS FOR FILTER ====================
+    async function loadPOsForFilter() {
+        try {
+            const res = await fetch('/api/pos/');
+            const pos = await res.json();
+            
+            const sel = document.getElementById('filterPO');
+            sel.innerHTML = '<option value="">All POs</option>' +
+                pos.map(p => `<option value="${p.id}">${p.po_number}</option>`).join('');
+        } catch (error) {
+            console.error('Error loading POs:', error);
+        }
+    }
+
+    // ==================== FILTERS ====================
+    function applyFilters() {
+        loadReceivings();
+    }
+
+    function resetFilters() {
+        document.getElementById('filterPO').value = '';
+        document.getElementById('filterInvoice').value = '';
+        document.getElementById('filterDateFrom').value = '';
+        document.getElementById('filterDateTo').value = '';
+        loadReceivings();
+    }
+
+    // ==================== INITIALIZE ====================
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Page loaded, initializing receivings...');
+        loadPOsForFilter();
+        loadReceivings();
+    });
+</script>
+{% endblock %}
