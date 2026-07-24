@@ -25,7 +25,12 @@ SECRET_KEY = 'django-insecure-gc5*kgyd^qm52fyk5^%t+v&^y_m#^dt)0*)m8wg8gfrp!ddf)2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'commate.onrender.com',
+    'commate-po-system.onrender.com',
+]
 
 
 # Application definition
